@@ -195,11 +195,8 @@
             // Update current price if changed
             if (currentPriceInput.HasValue && currentPriceInput.Value > 0)
             {
-                if (holding.CurrentPrice != currentPriceInput.Value)
-                {
-                    holding.CurrentPrice = currentPriceInput.Value;
-                    holding.LastPriceUpdate = DateTime.UtcNow;
-                }
+                holding.CurrentPrice = currentPriceInput.Value;
+                holding.LastPriceUpdate = DateTime.UtcNow;
             }
             else
             {
@@ -207,10 +204,8 @@
                 holding.LastPriceUpdate = null;
             }
 
-            // Note: We would need to add an UpdateAsync method to PortfolioService
-            // For now, using the UpdatePriceAsync for price updates
-            // You may need to add a full UpdateHoldingAsync method
-            await PortfolioService.UpdatePriceAsync(holding.Id, holding.CurrentPrice ?? 0);
+            // Update the entire holding with all changes
+            await PortfolioService.UpdateHoldingAsync(holding);
             
             // Navigate back to holdings page
             NavigationManager.NavigateTo("/holdings");

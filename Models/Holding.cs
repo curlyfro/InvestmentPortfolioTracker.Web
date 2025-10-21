@@ -8,9 +8,15 @@ public class Holding
     [Key]
     public int Id { get; set; }
 
+    private string _symbol = string.Empty;
+    
     [Required]
     [MaxLength(10)]
-    public string Symbol { get; set; } = string.Empty;
+    public string Symbol
+    {
+        get => _symbol;
+        set => _symbol = value?.ToUpperInvariant() ?? string.Empty;
+    }
 
     [Required]
     [MaxLength(100)]

@@ -33,16 +33,19 @@ public class HoldingRepository : IHoldingRepository
 
     public async Task<Holding> AddAsync(Holding holding)
     {
+        // Ensure symbol is uppercase
+        holding.Symbol = holding.Symbol?.ToUpperInvariant() ?? string.Empty;
+        
         var result = await _context.Holdings
             .FromSqlRaw(@"
-                EXEC sp_InsertHolding 
-                    @Symbol={0}, 
-                    @AssetName={1}, 
-                    @AssetType={2}, 
+                EXEC sp_InsertHolding
+                    @Symbol={0},
+                    @AssetName={1},
+                    @AssetType={2},
                     @Quantity={3},
-                    @PurchasePrice={4}, 
-                    @PurchaseDate={5}, 
-                    @CurrentPrice={6}, 
+                    @PurchasePrice={4},
+                    @PurchaseDate={5},
+                    @CurrentPrice={6},
                     @LastPriceUpdate={7}",
                 holding.Symbol,
                 holding.AssetName,
@@ -60,17 +63,20 @@ public class HoldingRepository : IHoldingRepository
 
     public async Task<Holding> UpdateAsync(Holding holding)
     {
+        // Ensure symbol is uppercase
+        holding.Symbol = holding.Symbol?.ToUpperInvariant() ?? string.Empty;
+        
         var result = await _context.Holdings
             .FromSqlRaw(@"
-                EXEC sp_UpdateHolding 
+                EXEC sp_UpdateHolding
                     @Id={0},
-                    @Symbol={1}, 
-                    @AssetName={2}, 
-                    @AssetType={3}, 
+                    @Symbol={1},
+                    @AssetName={2},
+                    @AssetType={3},
                     @Quantity={4},
-                    @PurchasePrice={5}, 
-                    @PurchaseDate={6}, 
-                    @CurrentPrice={7}, 
+                    @PurchasePrice={5},
+                    @PurchaseDate={6},
+                    @CurrentPrice={7},
                     @LastPriceUpdate={8}",
                 holding.Id,
                 holding.Symbol,

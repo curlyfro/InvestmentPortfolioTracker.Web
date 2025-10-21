@@ -24,11 +24,25 @@ public class PortfolioService
 
     public async Task<Holding> AddHoldingAsync(Holding holding)
     {
+        // Normalize symbol to uppercase
+        holding.Symbol = holding.Symbol?.ToUpperInvariant() ?? string.Empty;
+        
         // Validation
         ValidateHolding(holding);
         
         holding.CreatedAt = DateTime.UtcNow;
         return await _holdingRepository.AddAsync(holding);
+    }
+
+    public async Task<Holding> UpdateHoldingAsync(Holding holding)
+    {
+        // Normalize symbol to uppercase
+        holding.Symbol = holding.Symbol?.ToUpperInvariant() ?? string.Empty;
+        
+        // Validation
+        ValidateHolding(holding);
+        
+        return await _holdingRepository.UpdateAsync(holding);
     }
 
     public async Task<Holding> UpdatePriceAsync(int id, decimal newPrice)
