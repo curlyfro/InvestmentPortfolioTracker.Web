@@ -1,0 +1,195 @@
+@page "/"
+@using InvestmentPortfolioTracker.Web.Services
+@using InvestmentPortfolioTracker.Web.Models
+@inject PortfolioService PortfolioService
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1 class="mb-4">Portfolio Dashboard</h1>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading portfolio data...</p>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Error Loading Portfolio</h4>
+        <p>@errorMessage</p>
+    </div>
+}
+else if (summary != null)
+{
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Current Value</h5>
+                    <h2 class="mb-0">@summary.CurrentValue.ToString("C2")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Invested</h5>
+                    <h2 class="mb-0">@summary.TotalInvested.ToString("C2")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card @GetGainLossCardClass()">
+                <div class="card-body">
+                    <h5 class="card-title">Gain/Loss</h5>
+                    <h2 class="mb-0">@summary.TotalGainLoss.ToString("C2")</h2>
+                    <p class="mb-0">@summary.TotalGainLossPercent.ToString("F2")%</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Holdings</h5>
+                    <h2 class="mb-0">@summary.HoldingsCount</h2>
+                    <p class="mb-0">@summary.HoldingsWithPrices with prices</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Holdings -->
+    @if (summary.TopHoldings.Any())
+    {
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Top Holdings by Value</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th class="text-end">Current Value</th>
+                                        <th class="text-end">Gain/Loss</th>
+                                        <th class="text-end">%</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var holding in summary.TopHoldings)
+                                    {
+                                        <tr>
+                                            <td><strong>@holding.Symbol</strong></td>
+                                            <td>@holding.AssetName</td>
+                                            <td><span class="badge bg-secondary">@holding.AssetType</span></td>
+                                            <td class="text-end">@holding.CurrentValue?.ToString("C2")</td>
+                                            <td class="text-end @GetGainLossClass(holding.GainLoss)">
+                                                @holding.GainLoss?.ToString("C2")
+                                            </td>
+                                            <td class="text-end @GetGainLossClass(holding.GainLoss)">
+                                                @holding.GainLossPercent?.ToString("F2")%
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Best/Worst Performers -->
+    <div class="row">
+        @if (summary.BestPerformer != null)
+        {
+            <div class="col-md-6">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">🏆 Best Performer</h5>
+                    </div>
+                    <div class="card-body">
+                        <h4>@summary.BestPerformer.Symbol</h4>
+                        <p class="mb-1">@summary.BestPerformer.AssetName</p>
+                        <h3 class="text-success mb-0">
+                            +@summary.BestPerformer.GainLossPercent?.ToString("F2")%
+                        </h3>
+                        <p class="text-muted">@summary.BestPerformer.GainLoss?.ToString("C2")</p>
+                    </div>
+                </div>
+            </div>
+        }
+        @if (summary.WorstPerformer != null)
+        {
+            <div class="col-md-6">
+                <div class="card border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">📉 Worst Performer</h5>
+                    </div>
+                    <div class="card-body">
+                        <h4>@summary.WorstPerformer.Symbol</h4>
+                        <p class="mb-1">@summary.WorstPerformer.AssetName</p>
+                        <h3 class="text-danger mb-0">
+                            @summary.WorstPerformer.GainLossPercent?.ToString("F2")%
+                        </h3>
+                        <p class="text-muted">@summary.WorstPerformer.GainLoss?.ToString("C2")</p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (summary.HoldingsCount == 0)
+    {
+        <div class="alert alert-info mt-4" role="alert">
+            <h4 class="alert-heading">No Holdings Found</h4>
+            <p>You don't have any holdings yet. Get started by <a href="/add-holding" class="alert-link">adding your first holding</a>.</p>
+        </div>
+    }
+}
+
+@code {
+    private PortfolioSummary? summary;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            summary = await PortfolioService.GetPortfolioSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load portfolio data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetGainLossCardClass()
+    {
+        if (summary == null) return "bg-secondary text-white";
+        return summary.TotalGainLoss >= 0 ? "bg-success text-white" : "bg-danger text-white";
+    }
+
+    private string GetGainLossClass(decimal? gainLoss)
+    {
+        if (!gainLoss.HasValue) return "";
+        return gainLoss >= 0 ? "text-success fw-bold" : "text-danger fw-bold";
+    }
+}

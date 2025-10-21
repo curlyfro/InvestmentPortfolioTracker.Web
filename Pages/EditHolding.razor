@@ -1,0 +1,235 @@
+@page "/edit-holding/{Id:int}"
+@using InvestmentPortfolioTracker.Web.Services
+@using InvestmentPortfolioTracker.Web.Models
+@inject PortfolioService PortfolioService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Holding</PageTitle>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        @if (isLoading)
+        {
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading holding...</p>
+            </div>
+        }
+        else if (holding == null)
+        {
+            <div class="alert alert-warning">
+                <h4>Holding Not Found</h4>
+                <p>The holding you're trying to edit doesn't exist.</p>
+                <a href="/holdings" class="btn btn-primary">Back to Holdings</a>
+            </div>
+        }
+        else
+        {
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">Edit Holding: @holding.Symbol</h3>
+                </div>
+                <div class="card-body">
+                    @if (errorMessage != null)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <strong>Error!</strong> @errorMessage
+                            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                        </div>
+                    }
+
+                    <EditForm Model="@holding" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">Symbol/Ticker *</label>
+                            <InputText id="symbol" class="form-control" @bind-Value="holding.Symbol" />
+                            <ValidationMessage For="@(() => holding.Symbol)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="assetName" class="form-label">Asset Name *</label>
+                            <InputText id="assetName" class="form-control" @bind-Value="holding.AssetName" />
+                            <ValidationMessage For="@(() => holding.AssetName)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="assetType" class="form-label">Asset Type *</label>
+                            <InputSelect id="assetType" class="form-select" @bind-Value="holding.AssetType">
+                                <option value="Stock">Stock</option>
+                                <option value="ETF">ETF</option>
+                                <option value="Crypto">Crypto</option>
+                                <option value="Bond">Bond</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => holding.AssetType)" class="text-danger" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="quantity" class="form-label">Quantity *</label>
+                                    <InputNumber id="quantity" class="form-control" @bind-Value="holding.Quantity" 
+                                               step="0.00000001" />
+                                    <ValidationMessage For="@(() => holding.Quantity)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="purchasePrice" class="form-label">Purchase Price *</label>
+                                    <InputNumber id="purchasePrice" class="form-control" @bind-Value="holding.PurchasePrice" 
+                                               step="0.01" />
+                                    <ValidationMessage For="@(() => holding.PurchasePrice)" class="text-danger" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="purchaseDate" class="form-label">Purchase Date *</label>
+                            <InputDate id="purchaseDate" class="form-control" @bind-Value="holding.PurchaseDate" />
+                            <ValidationMessage For="@(() => holding.PurchaseDate)" class="text-danger" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="currentPrice" class="form-label">Current Price</label>
+                                    <InputNumber id="currentPrice" class="form-control" @bind-Value="currentPriceInput" 
+                                               step="0.01" />
+                                    <small class="form-text text-muted">
+                                        @if (holding.LastPriceUpdate.HasValue)
+                                        {
+                                            <text>Last updated: @holding.LastPriceUpdate.Value.ToLocalTime().ToString("g")</text>
+                                        }
+                                        else
+                                        {
+                                            <text>No price updates yet</text>
+                                        }
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Summary Info -->
+                        <div class="alert alert-info">
+                            <h5>Investment Summary</h5>
+                            <p class="mb-1"><strong>Cost Basis:</strong> @holding.CostBasis.ToString("C2")</p>
+                            @if (holding.CurrentValue.HasValue)
+                            {
+                                <p class="mb-1"><strong>Current Value:</strong> @holding.CurrentValue.Value.ToString("C2")</p>
+                                <p class="mb-0">
+                                    <strong>Gain/Loss:</strong> 
+                                    <span class="@GetGainLossClass()">
+                                        @holding.GainLoss?.ToString("C2") (@holding.GainLossPercent?.ToString("F2")%)
+                                    </span>
+                                </p>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                                <span class="oi oi-circle-x"></span> Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                <span class="oi oi-check"></span> Save Changes
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Holding? holding;
+    private decimal? currentPriceInput;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHolding();
+    }
+
+    private async Task LoadHolding()
+    {
+        try
+        {
+            isLoading = true;
+            holding = await PortfolioService.GetHoldingByIdAsync(Id);
+            if (holding != null)
+            {
+                currentPriceInput = holding.CurrentPrice;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load holding: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (holding == null) return;
+
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            // Update current price if changed
+            if (currentPriceInput.HasValue && currentPriceInput.Value > 0)
+            {
+                if (holding.CurrentPrice != currentPriceInput.Value)
+                {
+                    holding.CurrentPrice = currentPriceInput.Value;
+                    holding.LastPriceUpdate = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                holding.CurrentPrice = null;
+                holding.LastPriceUpdate = null;
+            }
+
+            // Note: We would need to add an UpdateAsync method to PortfolioService
+            // For now, using the UpdatePriceAsync for price updates
+            // You may need to add a full UpdateHoldingAsync method
+            await PortfolioService.UpdatePriceAsync(holding.Id, holding.CurrentPrice ?? 0);
+            
+            // Navigate back to holdings page
+            NavigationManager.NavigateTo("/holdings");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/holdings");
+    }
+
+    private string GetGainLossClass()
+    {
+        if (holding?.GainLoss == null) return "";
+        return holding.GainLoss >= 0 ? "text-success fw-bold" : "text-danger fw-bold";
+    }
+}

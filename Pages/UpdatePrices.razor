@@ -1,0 +1,317 @@
+@page "/update-prices"
+@using InvestmentPortfolioTracker.Web.Services
+@using InvestmentPortfolioTracker.Web.Models
+@inject PortfolioService PortfolioService
+
+<PageTitle>Update Prices</PageTitle>
+
+<h1 class="mb-4">Update Prices</h1>
+
+@if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading holdings...</p>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Error!</strong> @errorMessage
+        <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+    </div>
+}
+else if (successMessage != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>Success!</strong> @successMessage
+        <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+    </div>
+}
+
+@if (holdings != null && holdings.Any())
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Update Individual Prices</h4>
+            <button class="btn btn-success" @onclick="UpdateAllPrices" disabled="@isUpdating">
+                @if (isUpdating)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                }
+                <span class="oi oi-reload"></span> Update All
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th class="text-end">Current Price</th>
+                            <th class="text-end">Last Updated</th>
+                            <th class="text-end">New Price</th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var holding in holdings)
+                        {
+                            <tr>
+                                <td><strong>@holding.Symbol</strong></td>
+                                <td>@holding.AssetName</td>
+                                <td>
+                                    <span class="badge @GetAssetTypeBadgeClass(holding.AssetType)">
+                                        @holding.AssetType
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    @if (holding.CurrentPrice.HasValue)
+                                    {
+                                        @holding.CurrentPrice.Value.ToString("C2")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">N/A</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    @if (holding.LastPriceUpdate.HasValue)
+                                    {
+                                        <small class="text-muted">
+                                            @holding.LastPriceUpdate.Value.ToLocalTime().ToString("g")
+                                        </small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Never</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <input type="number"
+                                           class="form-control form-control-sm"
+                                           step="0.01"
+                                           placeholder="New price"
+                                           value="@(newPrices.ContainsKey(holding.Id) ? newPrices[holding.Id] : 0)"
+                                           @oninput="@((e) => UpdatePriceValue(holding.Id, e.Value?.ToString()))"
+                                           style="width: 120px; display: inline-block;" />
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => UpdateSinglePrice(holding.Id)"
+                                            disabled="@(GetIsUpdateDisabled(holding.Id))">
+                                        @if (updatingHoldings.Contains(holding.Id))
+                                        {
+                                            <span class="spinner-border spinner-border-sm"></span>
+                                        }
+                                        else
+                                        {
+                                            <span class="oi oi-check"></span>
+                                        }
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Update Section -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Update Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Enter new prices in the "New Price" column</li>
+                        <li>Click the checkmark to update individual holdings</li>
+                        <li>Use "Update All" to batch update all holdings with entered prices</li>
+                        <li>Leave price empty to skip updating that holding</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>Total Holdings:</strong> @holdings.Count()</p>
+                    <p class="mb-1"><strong>With Prices:</strong> @holdings.Count(h => h.CurrentPrice.HasValue)</p>
+                    <p class="mb-0"><strong>Without Prices:</strong> @holdings.Count(h => !h.CurrentPrice.HasValue)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (!isLoading)
+{
+    <div class="alert alert-info" role="alert">
+        <h4 class="alert-heading">No Holdings Found</h4>
+        <p>You don't have any holdings to update prices for. <a href="/add-holding" class="alert-link">Add a holding</a> to get started.</p>
+    </div>
+}
+
+@code {
+    private List<Holding>? holdings;
+    private Dictionary<int, decimal> newPrices = new Dictionary<int, decimal>();
+    private HashSet<int> updatingHoldings = new HashSet<int>();
+    private bool isLoading = true;
+    private bool isUpdating = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHoldings();
+    }
+
+    private async Task LoadHoldings()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await PortfolioService.GetAllHoldingsAsync();
+            holdings = result.OrderBy(h => h.Symbol).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load holdings: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateSinglePrice(int holdingId)
+    {
+        if (!newPrices.ContainsKey(holdingId) || newPrices[holdingId] <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            updatingHoldings.Add(holdingId);
+            errorMessage = null;
+            successMessage = null;
+
+            var holding = holdings?.FirstOrDefault(h => h.Id == holdingId);
+            if (holding != null)
+            {
+                await PortfolioService.UpdatePriceAsync(holdingId, newPrices[holdingId]);
+                successMessage = $"Price updated for {holding.Symbol}";
+                
+                // Reload holdings to get updated data
+                await LoadHoldings();
+                
+                // Clear the input for this holding
+                newPrices.Remove(holdingId);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to update price: {ex.Message}";
+        }
+        finally
+        {
+            updatingHoldings.Remove(holdingId);
+        }
+    }
+
+    private async Task UpdateAllPrices()
+    {
+        if (!newPrices.Any() || newPrices.All(p => p.Value <= 0))
+        {
+            errorMessage = "Please enter at least one valid price to update.";
+            return;
+        }
+
+        try
+        {
+            isUpdating = true;
+            errorMessage = null;
+            successMessage = null;
+
+            int updatedCount = 0;
+            var errors = new List<string>();
+
+            foreach (var priceEntry in newPrices.Where(p => p.Value > 0))
+            {
+                try
+                {
+                    await PortfolioService.UpdatePriceAsync(priceEntry.Key, priceEntry.Value);
+                    updatedCount++;
+                }
+                catch (Exception ex)
+                {
+                    var holding = holdings?.FirstOrDefault(h => h.Id == priceEntry.Key);
+                    errors.Add($"{holding?.Symbol ?? priceEntry.Key.ToString()}: {ex.Message}");
+                }
+            }
+
+            if (updatedCount > 0)
+            {
+                successMessage = $"Successfully updated {updatedCount} price(s)";
+            }
+
+            if (errors.Any())
+            {
+                errorMessage = "Some updates failed: " + string.Join(", ", errors);
+            }
+
+            // Reload holdings and clear prices
+            await LoadHoldings();
+            newPrices.Clear();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to update prices: {ex.Message}";
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    private void UpdatePriceValue(int holdingId, string? value)
+    {
+        if (decimal.TryParse(value, out decimal price))
+        {
+            newPrices[holdingId] = price;
+        }
+        else if (newPrices.ContainsKey(holdingId))
+        {
+            newPrices.Remove(holdingId);
+        }
+    }
+
+    private bool GetIsUpdateDisabled(int holdingId)
+    {
+        return !newPrices.ContainsKey(holdingId) ||
+               newPrices[holdingId] <= 0 ||
+               updatingHoldings.Contains(holdingId);
+    }
+
+    private string GetAssetTypeBadgeClass(string assetType)
+    {
+        return assetType switch
+        {
+            "Stock" => "bg-primary",
+            "ETF" => "bg-info",
+            "Crypto" => "bg-warning text-dark",
+            "Bond" => "bg-success",
+            _ => "bg-secondary"
+        };
+    }
+}
